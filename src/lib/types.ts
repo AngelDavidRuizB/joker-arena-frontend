@@ -39,6 +39,17 @@ export interface RoomState {
   bot_hands_left?: number;
   bot_discards_left?: number;
   bot_hand_number?: number;
+  /** Mano completa de 8 cartas del bot (presente solo en partidas con bot). */
+  bot_hand?: Card[];
+}
+
+/** Payload of BOT_ACTION: the bot's chosen move, announced before it mutates its state. */
+export interface BotAction {
+  room_code: string;
+  action: 'PLAY' | 'DISCARD';
+  /** Indices (1..5, ascending) into bot_hand as last broadcast in ROOM_STATE_UPDATE. */
+  card_indices: number[];
+  hand_number: number;
 }
 
 export interface ScoredCard {
@@ -100,6 +111,7 @@ export type ServerMessage =
   | { type: 'ROOM_STATE_UPDATE'; payload: RoomState }
   | { type: 'HAND_SCORED'; payload: HandScored }
   | { type: 'MATCH_FINISHED'; payload: MatchFinished }
+  | { type: 'BOT_ACTION'; payload: BotAction }
   | { type: 'ERROR'; payload: ServerError };
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';

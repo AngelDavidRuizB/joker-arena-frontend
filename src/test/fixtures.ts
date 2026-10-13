@@ -1,5 +1,17 @@
 import { DEFAULT_TARGET_SCORE, DEFAULT_TOTAL_DISCARDS, DEFAULT_TOTAL_HANDS } from '../lib/constants';
-import type { HandScored, RoomState } from '../lib/types';
+import type { BotAction, Card, HandScored, RoomState } from '../lib/types';
+
+/** A sample 8-card bot hand for tests that exercise the visible bot turn. */
+export const BOT_HAND: Card[] = [
+  { rank: 'A', suit: 'SPADES', chips: 11 },
+  { rank: 'A', suit: 'HEARTS', chips: 11 },
+  { rank: 'K', suit: 'CLUBS', chips: 10 },
+  { rank: 'Q', suit: 'DIAMONDS', chips: 10 },
+  { rank: 'J', suit: 'SPADES', chips: 10 },
+  { rank: '9', suit: 'HEARTS', chips: 9 },
+  { rank: '6', suit: 'CLUBS', chips: 6 },
+  { rank: '3', suit: 'DIAMONDS', chips: 3 },
+];
 
 export const room = (over: Partial<RoomState> = {}): RoomState => ({
   room_code: 'JKR-TEST',
@@ -21,6 +33,15 @@ export const room = (over: Partial<RoomState> = {}): RoomState => ({
     { id: '1', alias: 'Host', is_bot: false },
     { id: 'bot', alias: 'Bot-JokerBot', is_bot: true },
   ],
+  bot_hand: BOT_HAND,
+  ...over,
+});
+
+export const botAction = (over: Partial<BotAction> = {}): BotAction => ({
+  room_code: 'JKR-TEST',
+  action: 'PLAY',
+  card_indices: [0, 1],
+  hand_number: 1,
   ...over,
 });
 

@@ -78,6 +78,26 @@ describe('card hand (F3: selección interactiva)', () => {
   });
 });
 
+describe('read-only CardFan (bot turn)', () => {
+  it('renders the bot hand with the chosen indices highlighted and non-interactive', async () => {
+    const user = userEvent.setup();
+    render(<CardFan cards={HAND} selected={[0, 1]} disabled onToggle={() => {}} readOnly />);
+
+    expect(screen.getByRole('group', { name: 'Mano del bot' })).toBeInTheDocument();
+    const ace = screen.getByRole('button', { name: /^As de picas/ });
+    const king = screen.getByRole('button', { name: /^Rey de corazones/ });
+    // The two chosen cards show the selected visual via aria-pressed.
+    expect(ace).toHaveAttribute('aria-pressed', 'true');
+    expect(king).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(2);
+
+    // Clicking a card does nothing: the hand is read-only.
+    await user.click(ace);
+    expect(ace).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(2);
+  });
+});
+
 describe('HUD', () => {
   it('shows score progress, hands and discards', () => {
     render(<Hud room={room({ current_score: 11000, target_score: 22000, hands_left: 19, discards_left: 2, deck_count: 39 })} />);

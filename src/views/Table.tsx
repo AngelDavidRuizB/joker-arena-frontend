@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Copy, Play, RotateCcw } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { ArrowLeft, Bot, Copy, Play, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -14,7 +14,7 @@ import { PlayerPanel } from '../components/PlayerPanel';
 import { ResultOverlay } from '../components/ResultOverlay';
 import { ScoreCascade } from '../components/ScoreCascade';
 import type { CascadeStep } from '../lib/cascade';
-import { MAX_SELECTION, isHost, useGame } from '../store/game';
+import { MAX_SELECTION, REVEAL_MS, SELECT_HOLD_MS, isHost, useGame } from '../store/game';
 import { useSession } from '../store/session';
 import { normalizeRoomCode, validateRoomCode } from '../lib/validation';
 import { FATAL_ERROR_CODES, GameSocket } from '../ws/gameSocket';
@@ -36,10 +36,13 @@ export function Table() {
   const finished = useGame((s) => s.finished);
   const busy = useGame((s) => s.busy);
   const error = useGame((s) => s.error);
+  const botTurn = useGame((s) => s.botTurn);
+  const botPhase = useGame((s) => s.botPhase);
   const toggleCard = useGame((s) => s.toggleCard);
   const clearSelection = useGame((s) => s.clearSelection);
   const endCascade = useGame((s) => s.endCascade);
 
+  const reduce = useReducedMotion();
   const socketRef = useRef<GameSocket | null>(null);
   const [activeJoker, setActiveJoker] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(true);
@@ -89,10 +92,20 @@ export function Table() {
     return () => clearTimeout(t);
   }, [busy]);
 
+  // Drive the bot turn animation: reveal the hand, then highlight the chosen cards, then resolve
+  // (PLAY hands off to the queued bot cascade; DISCARD closes the turn so the new hand can arrive).
+  useEffect(() => {
+    if (!botTurn || botPhase === 'resolve' || botPhase === 'idle') return;
+    const delay = reduce ? 0 : botPhase === 'reveal' ? REVEAL_MS : SELECT_HOLD_MS;
+    const t = setTimeout(() => useGame.getState().advanceBotPhase(), delay);
+    return () => clearTimeout(t);
+  }, [botTurn, botPhase, reduce]);
+
   const host = isHost(room, player.id);
   const live = connection === 'open';
   const matchOver = !!finished || room?.status === 'FINISHED';
-  const canAct = host && live && !!room && !matchOver && !busy && !cascade && selected.length >= 1;
+  const botPlaying = !!botTurn;
+  const canAct = host && live && !!room && !matchOver && !busy && !cascade && !botPlaying && selected.length >= 1;
 
   const send = useCallback(
     (type: 'PLAY_HAND' | 'DISCARD_CARDS') => {
@@ -223,44 +236,77 @@ export function Table() {
                   </div>
                   <span className="font-mono text-sm text-slate-400">{room.deck_count} cartas en el mazo</span>
                 </div>
-                <span className="rounded-full border border-neon-amber/40 bg-neon-amber/10 px-3 py-1 font-mono text-sm text-neon-amber" aria-live="polite">
-                  Seleccionadas {selected.length}/{MAX_SELECTION}
-                </span>
+                {botPlaying ? (
+                  <span
+                    className="flex items-center gap-1.5 rounded-full border border-neon-magenta/50 bg-neon-magenta/10 px-3 py-1 font-display text-sm font-bold uppercase tracking-widest text-neon-magenta shadow-neon-magenta"
+                    aria-live="polite"
+                  >
+                    <Bot className="h-4 w-4" aria-hidden="true" />
+                    Turno del Bot
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-neon-amber/40 bg-neon-amber/10 px-3 py-1 font-mono text-sm text-neon-amber" aria-live="polite">
+                    Seleccionadas {selected.length}/{MAX_SELECTION}
+                  </span>
+                )}
               </div>
 
-              <CardFan
-                cards={room.cards_in_hand}
-                selected={selected}
-                disabled={!host || !live || matchOver || busy || !!cascade}
-                onToggle={toggleCard}
-              />
+              {botPlaying ? (
+                <CardFan
+                  cards={room.bot_hand ?? []}
+                  selected={botTurn.indices}
+                  disabled
+                  onToggle={() => {}}
+                  readOnly
+                />
+              ) : (
+                <CardFan
+                  cards={room.cards_in_hand}
+                  selected={selected}
+                  disabled={!host || !live || matchOver || busy || !!cascade}
+                  onToggle={toggleCard}
+                />
+              )}
 
-              <div className="relative flex flex-wrap items-center justify-center gap-3 border-t border-white/10 pt-5">
-                <NeonButton
-                  variant="amber"
-                  disabled={!canAct}
-                  loading={busy}
-                  onClick={() => send('PLAY_HAND')}
-                  icon={<Play className="h-4 w-4 fill-current" />}
-                >
-                  Jugar mano ({selected.length}/5)
-                </NeonButton>
-                <NeonButton
-                  variant="magenta"
-                  disabled={!canAct || room.discards_left <= 0}
-                  onClick={() => send('DISCARD_CARDS')}
-                  icon={<RotateCcw className="h-4 w-4" />}
-                >
-                  Descartar ({room.discards_left})
-                </NeonButton>
-                <NeonButton variant="ghost" disabled={selected.length === 0 || busy} onClick={clearSelection}>
-                  Limpiar
-                </NeonButton>
-              </div>
-              <p className="relative mt-3 text-center text-xs text-slate-500">
-                Atajos: <kbd className="font-mono">1–8</kbd> selecciona · <kbd className="font-mono">P</kbd> juega ·{' '}
-                <kbd className="font-mono">D</kbd> descarta · <kbd className="font-mono">Esc</kbd> limpia
-              </p>
+              {botPlaying ? (
+                <div className="relative flex flex-wrap items-center justify-center gap-3 border-t border-white/10 pt-5" aria-live="polite">
+                  <span className="flex items-center gap-2 font-display text-sm uppercase tracking-widest text-neon-magenta">
+                    <Bot className="h-4 w-4" aria-hidden="true" />
+                    {botTurn.action === 'DISCARD'
+                      ? `El bot descarta ${botTurn.indices.length}`
+                      : 'El bot juega su mano'}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div className="relative flex flex-wrap items-center justify-center gap-3 border-t border-white/10 pt-5">
+                    <NeonButton
+                      variant="amber"
+                      disabled={!canAct}
+                      loading={busy}
+                      onClick={() => send('PLAY_HAND')}
+                      icon={<Play className="h-4 w-4 fill-current" />}
+                    >
+                      Jugar mano ({selected.length}/5)
+                    </NeonButton>
+                    <NeonButton
+                      variant="magenta"
+                      disabled={!canAct || room.discards_left <= 0}
+                      onClick={() => send('DISCARD_CARDS')}
+                      icon={<RotateCcw className="h-4 w-4" />}
+                    >
+                      Descartar ({room.discards_left})
+                    </NeonButton>
+                    <NeonButton variant="ghost" disabled={selected.length === 0 || busy} onClick={clearSelection}>
+                      Limpiar
+                    </NeonButton>
+                  </div>
+                  <p className="relative mt-3 text-center text-xs text-slate-500">
+                    Atajos: <kbd className="font-mono">1–8</kbd> selecciona · <kbd className="font-mono">P</kbd> juega ·{' '}
+                    <kbd className="font-mono">D</kbd> descarta · <kbd className="font-mono">Esc</kbd> limpia
+                  </p>
+                </>
+              )}
 
               <AnimatePresence>
                 {cascade && (
