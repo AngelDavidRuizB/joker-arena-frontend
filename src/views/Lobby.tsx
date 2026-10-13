@@ -5,14 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiError, createRoom, getRoom } from '../api/client';
 import { NeonButton } from '../components/NeonButton';
+import { DEFAULT_TARGET_SCORE, TARGET_OPTIONS } from '../lib/constants';
 import { normalizeRoomCode, validateRoomCode } from '../lib/validation';
 import { useSession } from '../store/session';
 
-const TARGETS = [
-  { value: 300, label: '300', hint: 'Clásica' },
-  { value: 600, label: '600', hint: 'Desafío' },
-  { value: 1200, label: '1200', hint: 'Épica' },
-];
 
 /** F2: creación de salas (con o sin Bot) y unión por código. */
 export function Lobby() {
@@ -20,7 +16,7 @@ export function Lobby() {
   const player = useSession((s) => s.player)!;
 
   const [withBot, setWithBot] = useState(true);
-  const [target, setTarget] = useState(300);
+  const [target, setTarget] = useState<number>(DEFAULT_TARGET_SCORE);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
@@ -109,7 +105,7 @@ export function Lobby() {
           <fieldset>
             <legend className="label-caps mb-3">Meta de puntos</legend>
             <div className="grid grid-cols-3 gap-3">
-              {TARGETS.map((t) => (
+              {TARGET_OPTIONS.map((t) => (
                 <label
                   key={t.value}
                   className={`cursor-pointer rounded-xl border p-3 text-center transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-neon-cyan ${
@@ -126,7 +122,7 @@ export function Lobby() {
                     onChange={() => setTarget(t.value)}
                     className="sr-only"
                   />
-                  <div className="font-display text-xl font-bold">{t.label}</div>
+                  <div className="font-display text-xl font-bold">{t.value.toLocaleString('es-CO')}</div>
                   <div className="text-xs text-slate-400">{t.hint}</div>
                 </label>
               ))}

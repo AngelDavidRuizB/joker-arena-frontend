@@ -94,19 +94,26 @@ describe('Lobby (F2: salas)', () => {
 
   it('creates a room with the bot enabled by default', async () => {
     fetchMock.mockImplementation(() =>
-      json(201, { room_code: 'JKR-A7K2', match_id: '3', target_score: 300, status: 'WAITING', with_bot: true, players: ['7', 'bot'] }),
+      json(201, { room_code: 'JKR-A7K2', match_id: '3', target_score: 22000, status: 'WAITING', with_bot: true, players: ['7', 'bot'] }),
     );
     const user = userEvent.setup();
     renderAt('/lobby');
     await user.click(screen.getByRole('button', { name: /crear sala \(con bot\)/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ player_id: '7', target_score: 300, with_bot: true });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ player_id: '7', target_score: 22000, with_bot: true });
     expect(await screen.findByText(/MESA/)).toBeInTheDocument();
+  });
+
+  it('offers the three goals with 22.000 preselected', () => {
+    renderAt('/lobby');
+    expect(screen.getByRole('radio', { name: /22\.000|22000/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /26\.000|26000/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /33\.000|33000/ })).not.toBeChecked();
   });
 
   it('lets the user disable the bot before creating the room', async () => {
     fetchMock.mockImplementation(() =>
-      json(201, { room_code: 'JKR-B8M3', match_id: '4', target_score: 600, status: 'WAITING', with_bot: false, players: ['7'] }),
+      json(201, { room_code: 'JKR-B8M3', match_id: '4', target_score: 26000, status: 'WAITING', with_bot: false, players: ['7'] }),
     );
     const user = userEvent.setup();
     renderAt('/lobby');
@@ -114,10 +121,10 @@ describe('Lobby (F2: salas)', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-checked', 'false');
-    await user.click(screen.getByRole('radio', { name: /600/ }));
+    await user.click(screen.getByRole('radio', { name: /26\.000|26000/ }));
     await user.click(screen.getByRole('button', { name: /^crear sala$/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ player_id: '7', target_score: 600, with_bot: false });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ player_id: '7', target_score: 26000, with_bot: false });
   });
 
   it('shows a server error when the room cannot be created', async () => {
@@ -149,7 +156,7 @@ describe('Lobby (F2: salas)', () => {
 
   it('rejects joining a finished match', async () => {
     fetchMock.mockImplementation(() =>
-      json(200, { room_code: 'JKR-DONE', match_id: '9', target_score: 300, status: 'FINISHED', with_bot: true, player_count: 2 }),
+      json(200, { room_code: 'JKR-DONE', match_id: '9', target_score: 22000, status: 'FINISHED', with_bot: true, player_count: 2 }),
     );
     const user = userEvent.setup();
     renderAt('/lobby');
@@ -160,7 +167,7 @@ describe('Lobby (F2: salas)', () => {
 
   it('navigates to an existing room', async () => {
     fetchMock.mockImplementation(() =>
-      json(200, { room_code: 'JKR-LIVE', match_id: '9', target_score: 300, status: 'IN_PROGRESS', with_bot: true, player_count: 2 }),
+      json(200, { room_code: 'JKR-LIVE', match_id: '9', target_score: 22000, status: 'IN_PROGRESS', with_bot: true, player_count: 2 }),
     );
     const user = userEvent.setup();
     renderAt('/lobby');

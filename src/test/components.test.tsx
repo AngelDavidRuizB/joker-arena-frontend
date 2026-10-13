@@ -78,19 +78,34 @@ describe('card hand (F3: selección interactiva)', () => {
 
 describe('HUD', () => {
   it('shows score progress, hands and discards', () => {
-    render(<Hud room={room({ current_score: 150, target_score: 300, hands_left: 3, discards_left: 2, deck_count: 39 })} />);
+    render(<Hud room={room({ current_score: 11000, target_score: 22000, hands_left: 19, discards_left: 2, deck_count: 39 })} />);
     const bar = screen.getByRole('progressbar', { name: /progreso hacia la meta/i });
-    expect(bar).toHaveAttribute('aria-valuenow', '150');
-    expect(bar).toHaveAttribute('aria-valuemax', '300');
+    expect(bar).toHaveAttribute('aria-valuenow', '11000');
+    expect(bar).toHaveAttribute('aria-valuemax', '22000');
     expect(screen.getByText('50% de la meta')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Manos restantes: 3 de 4' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Manos restantes: 19 de 20' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Descartes restantes: 2 de 3' })).toBeInTheDocument();
     expect(screen.getByText('39 en mazo')).toBeInTheDocument();
+    // 20 hands render as a progress bar, only the 3 discards use pips.
+    expect(screen.getAllByTestId('pip')).toHaveLength(3);
+    expect(screen.getByTestId('pips-bar')).toBeInTheDocument();
   });
 
   it('caps the progress at 100% when the target is exceeded', () => {
-    render(<Hud room={room({ current_score: 1248, target_score: 300 })} />);
+    render(<Hud room={room({ current_score: 25000, target_score: 22000 })} />);
     expect(screen.getByText('100% de la meta')).toBeInTheDocument();
+  });
+
+  it.each([undefined, 0, -3])('falls back to 20 hands when hands_total is %s', (total) => {
+    render(<Hud room={room({ hands_left: 20, hands_total: total })} />);
+    expect(screen.getByRole('img', { name: 'Manos restantes: 20 de 20' })).toBeInTheDocument();
+    expect(screen.getByTestId('pips-bar').innerHTML).not.toContain('NaN');
+  });
+
+  it('keeps pips for small totals (older server)', () => {
+    render(<Hud room={room({ hands_left: 4, hands_total: 4, discards_total: 3 })} />);
+    expect(screen.getAllByTestId('pip')).toHaveLength(7);
+    expect(screen.queryByTestId('pips-bar')).toBeNull();
   });
 });
 

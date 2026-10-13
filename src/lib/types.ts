@@ -22,6 +22,9 @@ export interface RoomState {
   status: RoomStatus;
   target_score: number;
   hands_left: number;
+  /** Totales de la partida (aditivos; el FE usa 20/3 si faltan). */
+  hands_total?: number;
+  discards_total?: number;
   discards_left: number;
   current_score: number;
   deck_count: number;

@@ -1,11 +1,14 @@
+import { DEFAULT_TARGET_SCORE, DEFAULT_TOTAL_DISCARDS, DEFAULT_TOTAL_HANDS } from '../lib/constants';
 import type { HandScored, RoomState } from '../lib/types';
 
 export const room = (over: Partial<RoomState> = {}): RoomState => ({
   room_code: 'JKR-TEST',
   match_id: '1',
   status: 'WAITING',
-  target_score: 300,
-  hands_left: 4,
+  target_score: DEFAULT_TARGET_SCORE,
+  hands_left: DEFAULT_TOTAL_HANDS,
+  hands_total: DEFAULT_TOTAL_HANDS,
+  discards_total: DEFAULT_TOTAL_DISCARDS,
   discards_left: 3,
   current_score: 0,
   deck_count: 44,

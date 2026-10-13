@@ -15,9 +15,9 @@ describe('game store', () => {
     s.toggleCard(0);
     s.toggleCard(3);
     expect(useGame.getState().selected).toEqual([0, 3]);
-    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 3 }) });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 19 }) });
     expect(useGame.getState().selected).toEqual([]);
-    expect(useGame.getState().room?.hands_left).toBe(3);
+    expect(useGame.getState().room?.hands_left).toBe(19);
   });
 
   it('toggles cards and enforces the maximum of five', () => {
@@ -54,22 +54,22 @@ describe('game store', () => {
 
   it('queues state and result messages while the scoring cascade is playing', () => {
     const s = useGame.getState();
-    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 4 }) });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 20 }) });
     s.setBusy(true);
     const scored: HandScored = makeHand();
     const finished: MatchFinished = {
       room_code: 'JKR-TEST', match_id: '1', winner_id: '1', result: 'WIN', final_score: 1248,
-      target_score: 300, target_reached: true, reason: 'TARGET_SCORE_REACHED', hands_played: 1,
+      target_score: 22000, target_reached: true, reason: 'TARGET_SCORE_REACHED', hands_played: 1,
     };
 
     s.applyMessage({ type: 'HAND_SCORED', payload: scored });
-    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 3, current_score: 1248 }) });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 19, current_score: 1248 }) });
     s.applyMessage({ type: 'MATCH_FINISHED', payload: finished });
 
     let st = useGame.getState();
     expect(st.cascade).toEqual(scored);
     expect(st.history).toHaveLength(1);
-    expect(st.room?.hands_left).toBe(4); // old state still shown during the animation
+    expect(st.room?.hands_left).toBe(20); // old state still shown during the animation
     expect(st.finished).toBeNull();
     expect(st.queued).toHaveLength(2);
 
@@ -77,7 +77,7 @@ describe('game store', () => {
     st = useGame.getState();
     expect(st.cascade).toBeNull();
     expect(st.queued).toHaveLength(0);
-    expect(st.room?.hands_left).toBe(3);
+    expect(st.room?.hands_left).toBe(19);
     expect(st.room?.current_score).toBe(1248);
     expect(st.finished?.result).toBe('WIN');
     expect(st.busy).toBe(false);

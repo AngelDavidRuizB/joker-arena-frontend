@@ -1,3 +1,4 @@
+import { DEFAULT_TARGET_SCORE } from '../lib/constants';
 import type { CreateRoomResponse, PlayerDto, RoomDetails } from '../lib/types';
 
 /** Error raised by the REST client. status 0 means the server could not be reached. */
@@ -45,7 +46,7 @@ export const registerPlayer = (alias: string) =>
   request<PlayerDto>('/api/players', { method: 'POST', body: JSON.stringify({ alias }) });
 
 /** F2: create a room (and its persisted match). */
-export const createRoom = (playerId: string, withBot: boolean, targetScore = 300) =>
+export const createRoom = (playerId: string, withBot: boolean, targetScore = DEFAULT_TARGET_SCORE) =>
   request<CreateRoomResponse>('/api/rooms', {
     method: 'POST',
     body: JSON.stringify({ player_id: playerId, target_score: targetScore, with_bot: withBot }),
