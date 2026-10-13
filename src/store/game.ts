@@ -44,6 +44,7 @@ export interface GameState {
   clearSelection: () => void;
   setBusy: (busy: boolean) => void;
   endCascade: () => void;
+  drainQueue: () => void;
   advanceBotPhase: () => void;
   dismissError: () => void;
 }
@@ -135,19 +136,28 @@ export const useGame = create<GameState>((set, get) => ({
   setBusy: (busy) => set({ busy }),
 
   endCascade: () => {
-    // Clear only the cascade; drain the queue one message at a time. A queued bot HAND_SCORED
-    // re-enters applyMessage and sets the next cascade, which must re-queue every message still
-    // pending behind it — so we take the head and keep the tail in the store before replaying.
-    // When the cascade that just ended belonged to the bot, its visible turn is over: clear it.
-    const { queued, cascade } = get();
+    // The active cascade finished playing. When it belonged to the bot, its visible turn is over.
+    const { cascade } = get();
     const wasBot = cascade?.player_id === BOT_PLAYER_ID;
     set({ cascade: null, ...(wasBot ? { botTurn: null, botPhase: 'idle' as BotPhase } : {}) });
+    get().drainQueue();
+  },
+
+  drainQueue: () => {
+    // Drain the held-back messages one at a time. A queued bot HAND_SCORED re-enters applyMessage
+    // and sets the next cascade, which must re-queue every message still pending behind it — so we
+    // take the head and keep the tail in the store before replaying. Stop as soon as a cascade opens
+    // or a *new* visible bot turn opens: the view animates it and calls back here (endCascade /
+    // drainQueue) to continue. A bot turn already open before draining (the PLAY 'resolve' hand-off)
+    // does not stop the drain — the bot HAND_SCORED must become the active cascade under that turn.
+    // Called from endCascade and whenever the view resolves a bot phase that leaves a queued message
+    // with no active cascade to carry it (bot PLAY 'resolve', closed DISCARD turn).
+    const openTurnBefore = get().botTurn;
+    const { queued } = get();
     for (let i = 0; i < queued.length; i++) {
       set({ queued: queued.slice(i + 1) });
       get().applyMessage(queued[i]);
-      // Stop when a new cascade started (the rest was re-queued behind it) or when a BOT_ACTION
-      // opened the visible bot turn — the view animates reveal/select before the bot cascade plays.
-      if (get().cascade || get().botTurn) break;
+      if (get().cascade || get().botTurn !== openTurnBefore) break;
     }
   },
 

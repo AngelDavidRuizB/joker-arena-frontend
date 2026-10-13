@@ -176,6 +176,89 @@ describe('game store', () => {
     expect(st.queued).toHaveLength(0);
   });
 
+  it('drives a bot PLAY end-to-end through the view path (phase advances + queue drain, no manual endCascade past resolve)', () => {
+    const s = useGame.getState();
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND }) });
+
+    const hostHand: HandScored = makeHand({ player_id: '1', hand_number: 1 });
+    const botHand: HandScored = makeHand({ player_id: 'bot', hand_number: 1, accumulated_score: 900, score: 900 });
+
+    s.applyMessage({ type: 'HAND_SCORED', payload: hostHand });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND, hands_left: 19 }) });
+    s.applyMessage({ type: 'BOT_ACTION', payload: botAction({ action: 'PLAY', card_indices: [0, 1] }) });
+    s.applyMessage({ type: 'HAND_SCORED', payload: botHand });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND, hands_left: 19, bot_score: 900 }) });
+
+    // The host cascade finishes (view: onCascadeDone -> endCascade): host STATE applies, BOT_ACTION opens the turn.
+    s.endCascade();
+    let st = useGame.getState();
+    expect(st.cascade).toBeNull();
+    expect(st.botTurn).toEqual({ action: 'PLAY', indices: [0, 1], handNumber: 1 });
+    expect(st.botPhase).toBe('reveal');
+    expect(st.queued).toHaveLength(2); // bot HAND_SCORED + bot STATE held behind the BOT_ACTION
+
+    // The view's phase timer advances reveal -> select -> resolve (no cascade mounted during these).
+    s.advanceBotPhase();
+    expect(useGame.getState().botPhase).toBe('select');
+    s.advanceBotPhase();
+    expect(useGame.getState().botPhase).toBe('resolve');
+
+    // The view's drain effect fires on 'resolve' (cascade===null, queue non-empty): drainQueue, NOT endCascade.
+    s.drainQueue();
+    st = useGame.getState();
+    expect(st.cascade).toEqual(botHand); // the queued bot HAND_SCORED is now the active cascade
+    expect(st.history.map((h) => h.player_id)).toEqual(['1', 'bot']);
+    expect(st.botTurn).not.toBeNull(); // still the bot's turn while its cascade plays
+    expect(st.queued).toHaveLength(1); // the final bot STATE is still pending
+
+    // The bot cascade ends (view: onCascadeDone -> endCascade): botTurn clears, the final STATE applies.
+    s.endCascade();
+    st = useGame.getState();
+    expect(st.cascade).toBeNull();
+    expect(st.botTurn).toBeNull();
+    expect(st.botPhase).toBe('idle');
+    expect(st.room?.bot_score).toBe(900);
+    expect(st.queued).toHaveLength(0);
+  });
+
+  it('drives a bot DISCARD end-to-end through the view path: the queued refilled STATE drains after the turn closes', () => {
+    const s = useGame.getState();
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND }) });
+
+    const hostHand: HandScored = makeHand({ player_id: '1', hand_number: 1 });
+    const refilled: Card[] = [...BOT_HAND];
+    refilled[2] = { rank: '7', suit: 'SPADES', chips: 7 };
+
+    // Per-round order with a discard: HAND_SCORED(host), STATE(host), BOT_ACTION(DISCARD), STATE(bot refill).
+    s.applyMessage({ type: 'HAND_SCORED', payload: hostHand });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND, hands_left: 19 }) });
+    s.applyMessage({ type: 'BOT_ACTION', payload: botAction({ action: 'DISCARD', card_indices: [2, 3] }) });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: refilled, bot_discards_left: 2 }) });
+
+    // Host cascade finishes: host STATE applies, BOT_ACTION opens the discard turn, the refill STATE stays queued.
+    s.endCascade();
+    let st = useGame.getState();
+    expect(st.botTurn).toEqual({ action: 'DISCARD', indices: [2, 3], handNumber: 1 });
+    expect(st.botPhase).toBe('reveal');
+    expect(st.room?.bot_hand?.[2].rank).toBe('K'); // still the old hand during the turn
+    expect(st.queued).toHaveLength(1); // the refilled STATE is held behind the BOT_ACTION
+
+    // reveal -> select -> close (advanceBotPhase on DISCARD clears the turn to idle).
+    s.advanceBotPhase();
+    expect(useGame.getState().botPhase).toBe('select');
+    s.advanceBotPhase();
+    st = useGame.getState();
+    expect(st.botTurn).toBeNull();
+    expect(st.botPhase).toBe('idle');
+
+    // The view's drain effect fires now that no cascade/turn carries the queue: the refilled bot hand shows.
+    s.drainQueue();
+    st = useGame.getState();
+    expect(st.room?.bot_hand?.[2].rank).toBe('7');
+    expect(st.room?.bot_discards_left).toBe(2);
+    expect(st.queued).toHaveLength(0);
+  });
+
   it('sets botTurn for a BOT_ACTION(DISCARD), updates the bot hand from the next STATE and clears the turn', () => {
     const s = useGame.getState();
     s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), bot_hand: BOT_HAND }) });

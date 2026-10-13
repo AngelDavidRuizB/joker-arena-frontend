@@ -38,6 +38,7 @@ export function Table() {
   const error = useGame((s) => s.error);
   const botTurn = useGame((s) => s.botTurn);
   const botPhase = useGame((s) => s.botPhase);
+  const queued = useGame((s) => s.queued);
   const toggleCard = useGame((s) => s.toggleCard);
   const clearSelection = useGame((s) => s.clearSelection);
   const endCascade = useGame((s) => s.endCascade);
@@ -100,6 +101,16 @@ export function Table() {
     const t = setTimeout(() => useGame.getState().advanceBotPhase(), delay);
     return () => clearTimeout(t);
   }, [botTurn, botPhase, reduce]);
+
+  // Drain the held-back queue when no cascade is mounted to carry it and the bot turn is not
+  // mid-animation. Covers the two seams a ScoreCascade can't reach on its own: a bot PLAY that
+  // reached 'resolve' (the queued bot HAND_SCORED becomes the active cascade) and a closed bot
+  // DISCARD turn (the refilled bot_hand STATE applies). onCascadeDone handles the live cascade.
+  useEffect(() => {
+    if (cascade || botPhase === 'reveal' || botPhase === 'select') return;
+    if (queued.length === 0) return;
+    useGame.getState().drainQueue();
+  }, [cascade, botPhase, queued]);
 
   const host = isHost(room, player.id);
   const live = connection === 'open';
