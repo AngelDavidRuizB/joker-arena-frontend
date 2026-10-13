@@ -49,9 +49,10 @@ export const useGame = create<GameState>((set, get) => ({
 
   applyMessage: (msg) => {
     const state = get();
-    // While a scoring cascade is animating, hold back the state/finish messages so the
-    // player sees the old cards until the animation completes (HAND_SCORED arrives first).
-    if (state.cascade && (msg.type === 'ROOM_STATE_UPDATE' || msg.type === 'MATCH_FINISHED')) {
+    // While a scoring cascade is animating, hold back every follow-up (state, finish and
+    // the bot's own HAND_SCORED) so the player sees the active cascade to the end before the
+    // old cards change or the next cascade plays. endCascade drains the queue one by one.
+    if (state.cascade && (msg.type === 'ROOM_STATE_UPDATE' || msg.type === 'MATCH_FINISHED' || msg.type === 'HAND_SCORED')) {
       set({ queued: [...state.queued, msg] });
       return;
     }
@@ -91,9 +92,16 @@ export const useGame = create<GameState>((set, get) => ({
   setBusy: (busy) => set({ busy }),
 
   endCascade: () => {
+    // Clear only the cascade; drain the queue one message at a time. A queued bot HAND_SCORED
+    // re-enters applyMessage and sets the next cascade, which must re-queue every message still
+    // pending behind it — so we take the head and keep the tail in the store before replaying.
     const { queued } = get();
-    set({ cascade: null, queued: [] });
-    queued.forEach((m) => get().applyMessage(m));
+    set({ cascade: null });
+    for (let i = 0; i < queued.length; i++) {
+      set({ queued: queued.slice(i + 1) });
+      get().applyMessage(queued[i]);
+      if (get().cascade) break; // a new cascade started; the rest was re-queued behind it
+    }
   },
 
   dismissError: () => set({ error: null }),

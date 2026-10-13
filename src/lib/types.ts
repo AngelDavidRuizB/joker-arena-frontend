@@ -34,6 +34,11 @@ export interface RoomState {
   with_bot: boolean;
   host_id: string;
   players: PlayerInfo[];
+  /** Estado del bot (presente solo en partidas con bot; ausente/cero si no hay bot). */
+  bot_score?: number;
+  bot_hands_left?: number;
+  bot_discards_left?: number;
+  bot_hand_number?: number;
 }
 
 export interface ScoredCard {

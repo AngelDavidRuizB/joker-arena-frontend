@@ -83,6 +83,45 @@ describe('game store', () => {
     expect(st.busy).toBe(false);
   });
 
+  it('queues the bot HAND_SCORED during the host cascade and replays both in order', () => {
+    const s = useGame.getState();
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 20 }) });
+
+    const hostHand: HandScored = makeHand({ player_id: '1', hand_number: 1 });
+    const botHand: HandScored = makeHand({ player_id: 'bot', hand_number: 1, accumulated_score: 900, score: 900 });
+
+    // Per-round order with a bot: HAND_SCORED(host), STATE(host), HAND_SCORED(bot), STATE(bot).
+    s.applyMessage({ type: 'HAND_SCORED', payload: hostHand });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 19, current_score: 1248 }) });
+    s.applyMessage({ type: 'HAND_SCORED', payload: botHand });
+    s.applyMessage({ type: 'ROOM_STATE_UPDATE', payload: makeRoom({ cards_in_hand: cards(8), hands_left: 19, current_score: 1248, bot_score: 900 }) });
+
+    let st = useGame.getState();
+    // The host cascade is active; the bot HAND_SCORED and both STATEs are held back.
+    expect(st.cascade).toEqual(hostHand);
+    expect(st.history).toHaveLength(1);
+    expect(st.room?.hands_left).toBe(20);
+    expect(st.room?.bot_score).toBeUndefined();
+    expect(st.queued).toHaveLength(3);
+
+    // First endCascade drains the host STATE, then re-enters the bot HAND_SCORED as the next cascade.
+    s.endCascade();
+    st = useGame.getState();
+    expect(st.cascade).toEqual(botHand);
+    expect(st.history).toHaveLength(2);
+    expect(st.history.map((h) => h.player_id)).toEqual(['1', 'bot']);
+    expect(st.room?.hands_left).toBe(19); // host STATE applied before the bot cascade
+    expect(st.queued).toHaveLength(1); // the bot STATE is still pending behind the bot cascade
+
+    // Second endCascade drains the final bot STATE.
+    s.endCascade();
+    st = useGame.getState();
+    expect(st.cascade).toBeNull();
+    expect(st.queued).toHaveLength(0);
+    expect(st.room?.bot_score).toBe(900);
+    expect(st.room?.current_score).toBe(1248);
+  });
+
   it('stores server errors and releases the busy flag', () => {
     const s = useGame.getState();
     s.setBusy(true);

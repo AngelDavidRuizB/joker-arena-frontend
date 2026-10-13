@@ -1,6 +1,7 @@
-import { Activity } from 'lucide-react';
+import { Activity, Bot, Crown } from 'lucide-react';
 import { SUIT_SYMBOL, handName, isRedSuit } from '../lib/cards';
 import { formulaText } from '../lib/cascade';
+import { BOT_PLAYER_ID } from '../lib/constants';
 import type { HandScored } from '../lib/types';
 
 /** Live audit console: the exact algebraic breakdown of every hand played in the match. */
@@ -22,13 +23,23 @@ export function AuditPanel({ history }: { history: HandScored[] }) {
         </p>
       ) : (
         <ol className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-          {items.map((h) => (
-            <li key={`${h.hand_number}-${h.timestamp}`} className="rounded-xl border border-white/10 bg-ink-950/60 p-3">
+          {items.map((h) => {
+            const isBot = h.player_id === BOT_PLAYER_ID;
+            return (
+            <li key={`${h.player_id}-${h.hand_number}-${h.timestamp}`} className="rounded-xl border border-white/10 bg-ink-950/60 p-3">
               <div className="flex items-center justify-between">
                 <span className="font-display text-xs font-bold uppercase tracking-widest text-neon-cyan">
                   #{h.hand_number} · {handName(h.poker_hand)}
                 </span>
                 <span className="font-display text-lg font-black text-neon-amber">+{h.score.toLocaleString('es-CO')}</span>
+              </div>
+              <div
+                className={`mt-1 inline-flex items-center gap-1 font-display text-[0.65rem] font-bold uppercase tracking-widest ${
+                  isBot ? 'text-neon-magenta' : 'text-neon-amber'
+                }`}
+              >
+                {isBot ? <Bot className="h-3 w-3" aria-hidden="true" /> : <Crown className="h-3 w-3" aria-hidden="true" />}
+                {isBot ? 'Bot' : 'Anfitrión'}
               </div>
               <div className="mt-2 flex flex-wrap gap-1" aria-hidden="true">
                 {h.cards_played.map((c, i) => (
@@ -63,7 +74,8 @@ export function AuditPanel({ history }: { history: HandScored[] }) {
               </p>
               <p className="mt-1 text-right text-xs text-slate-500">Acumulado: {h.accumulated_score.toLocaleString('es-CO')}</p>
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
     </section>

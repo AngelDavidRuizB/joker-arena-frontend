@@ -10,3 +10,6 @@ export const TARGET_OPTIONS = [
 /** Respaldo del HUD cuando el servidor no envía hands_total / discards_total. */
 export const DEFAULT_TOTAL_HANDS = 20;
 export const DEFAULT_TOTAL_DISCARDS = 3;
+
+/** Id del jugador bot en el protocolo (espejo de room.BotPlayerID en el backend). */
+export const BOT_PLAYER_ID = 'bot';

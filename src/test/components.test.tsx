@@ -3,8 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CardFan } from '../components/CardFan';
 import { AuditPanel } from '../components/AuditPanel';
+import { BotScoreboard } from '../components/BotScoreboard';
 import { Hud } from '../components/Hud';
 import { JokerBar } from '../components/JokerBar';
+import { ScoreCascade } from '../components/ScoreCascade';
 import { useGame } from '../store/game';
 import type { Card } from '../lib/types';
 import { hand, room } from './fixtures';
@@ -125,5 +127,56 @@ describe('Jokers and audit', () => {
   it('shows an empty state before any hand is played', () => {
     render(<AuditPanel history={[]} />);
     expect(screen.getByText(/juega una mano/i)).toBeInTheDocument();
+  });
+
+  it('labels each audit entry as Anfitrión or Bot from the player_id', () => {
+    render(
+      <AuditPanel
+        history={[
+          hand({ player_id: '1', hand_number: 1, timestamp: '2026-10-12T19:40:00Z' }),
+          hand({ player_id: 'bot', hand_number: 1, timestamp: '2026-10-12T19:40:01Z' }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('Anfitrión')).toBeInTheDocument();
+    expect(screen.getByText('Bot')).toBeInTheDocument();
+  });
+});
+
+describe('Score cascade author badge', () => {
+  it('shows the host label for a host hand', () => {
+    render(<ScoreCascade hand={hand({ player_id: '1' })} authorLabel="Host" onDone={() => {}} />);
+    expect(screen.getByTestId('cascade-author')).toHaveTextContent('Host');
+  });
+
+  it('shows the Bot label for a player_id="bot" hand', () => {
+    render(<ScoreCascade hand={hand({ player_id: 'bot' })} authorLabel="Host" onDone={() => {}} />);
+    expect(screen.getByTestId('cascade-author')).toHaveTextContent('Bot');
+  });
+});
+
+describe('Bot scoreboard', () => {
+  it('shows the bot score, hands, discards and progress when with_bot', () => {
+    render(<BotScoreboard room={room({ with_bot: true, bot_score: 11000, bot_hands_left: 18, bot_discards_left: 2, target_score: 22000 })} />);
+    const bar = screen.getByRole('progressbar', { name: /progreso del bot/i });
+    expect(bar).toHaveAttribute('aria-valuenow', '11000');
+    expect(bar).toHaveAttribute('aria-valuemax', '22000');
+    expect(screen.getByText('50% de la meta')).toBeInTheDocument();
+    expect(screen.getByText('Marcador del bot')).toBeInTheDocument();
+  });
+
+  it('renders nothing when the room has no bot', () => {
+    const { container } = render(<BotScoreboard room={room({ with_bot: false })} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('tolerates missing bot_* fields with a zero fallback', () => {
+    const r = room({ with_bot: true, target_score: 22000 });
+    delete r.bot_score;
+    delete r.bot_hands_left;
+    delete r.bot_discards_left;
+    render(<BotScoreboard room={r} />);
+    expect(screen.getByText('0% de la meta')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /progreso del bot/i })).toHaveAttribute('aria-valuenow', '0');
   });
 });

@@ -1,12 +1,16 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { Bot, Crown } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { buildCascade, type CascadeStep } from '../lib/cascade';
 import { SUIT_SYMBOL, isRedSuit } from '../lib/cards';
+import { BOT_PLAYER_ID } from '../lib/constants';
 import type { HandScored } from '../lib/types';
 import { AnimatedNumber } from './AnimatedNumber';
 
 interface ScoreCascadeProps {
   hand: HandScored;
+  /** Label of the hand's author (the host alias); the bot is always labelled 'Bot'. */
+  authorLabel?: string;
   /** Called with each step so the parent can highlight the matching Joker. */
   onStep?: (step: CascadeStep) => void;
   onDone: () => void;
@@ -17,12 +21,14 @@ const STEP_MS_REDUCED = 250;
 const HOLD_MS = 1500;
 
 /** Overlay that reveals the server's scoring maths step by step: Chips x Mult. */
-export function ScoreCascade({ hand, onStep, onDone }: ScoreCascadeProps) {
+export function ScoreCascade({ hand, authorLabel, onStep, onDone }: ScoreCascadeProps) {
   const reduce = useReducedMotion();
   const steps = useMemo(() => buildCascade(hand), [hand]);
   const [index, setIndex] = useState(0);
   const step = steps[index];
   const last = index === steps.length - 1;
+  const isBot = hand.player_id === BOT_PLAYER_ID;
+  const author = isBot ? 'Bot' : authorLabel ?? 'Anfitrión';
 
   useEffect(() => {
     onStep?.(step);
@@ -39,12 +45,22 @@ export function ScoreCascade({ hand, onStep, onDone }: ScoreCascadeProps) {
     <motion.div
       role="dialog"
       aria-modal="false"
-      aria-label={`Puntuación de la mano ${hand.hand_number}`}
+      aria-label={`Puntuación de la mano ${hand.hand_number} de ${author}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 rounded-[2rem] bg-ink-950/85 p-4 backdrop-blur-md"
     >
+      <div
+        data-testid="cascade-author"
+        className={`absolute left-4 top-4 flex items-center gap-1.5 rounded-lg border px-3 py-1 font-display text-[0.65rem] font-bold uppercase tracking-widest ${
+          isBot ? 'border-neon-magenta/60 bg-neon-magenta/10 text-neon-magenta' : 'border-neon-amber/60 bg-neon-amber/10 text-neon-amber'
+        }`}
+      >
+        {isBot ? <Bot className="h-3.5 w-3.5" aria-hidden="true" /> : <Crown className="h-3.5 w-3.5" aria-hidden="true" />}
+        {author}
+      </div>
+
       <button
         type="button"
         onClick={onDone}

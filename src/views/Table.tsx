@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AuditPanel } from '../components/AuditPanel';
+import { BotScoreboard } from '../components/BotScoreboard';
 import { CardFan } from '../components/CardFan';
 import { ConnectionBadge } from '../components/ConnectionBadge';
 import { Hud } from '../components/Hud';
@@ -262,13 +263,22 @@ export function Table() {
               </p>
 
               <AnimatePresence>
-                {cascade && <ScoreCascade key={cascade.hand_number} hand={cascade} onStep={onStep} onDone={onCascadeDone} />}
+                {cascade && (
+                  <ScoreCascade
+                    key={`${cascade.player_id}-${cascade.hand_number}`}
+                    hand={cascade}
+                    authorLabel={room.players.find((p) => p.id === room.host_id)?.alias ?? 'Anfitrión'}
+                    onStep={onStep}
+                    onDone={onCascadeDone}
+                  />
+                )}
               </AnimatePresence>
             </section>
           </div>
 
           <aside className="space-y-6">
             <PlayerPanel room={room} meId={player.id} />
+            <BotScoreboard room={room} />
             <AuditPanel history={history} />
           </aside>
         </div>
