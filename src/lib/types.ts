@@ -47,7 +47,7 @@ export interface RoomState {
 export interface BotAction {
   room_code: string;
   action: 'PLAY' | 'DISCARD';
-  /** Indices (1..5, ascending) into bot_hand as last broadcast in ROOM_STATE_UPDATE. */
+  /** 1..5 zero-based indices (ascending) into bot_hand as last broadcast in ROOM_STATE_UPDATE. */
   card_indices: number[];
   hand_number: number;
 }
