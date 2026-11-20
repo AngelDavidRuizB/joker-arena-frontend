@@ -1,3 +1,6 @@
+> [!WARNING]
+> **Repositorio archivado (Prototipo 1).** Este cliente web (React + Vite) corresponde únicamente al Prototipo 1 y se conserva como referencia histórica (etiqueta `p1-final`). A partir del Prototipo 2 y en el Prototipo 3, el cliente web (`clients/web-ssr`, Next.js SSR) reside en el repositorio unificado: [AngelDavidRuizB/joker-arena-backend](https://github.com/AngelDavidRuizB/joker-arena-backend).
+
 # Joker Arena - Frontend Web Client 🃏✨
 
 Frontend web de **Joker Arena: Multiverse Poker Engine**, desarrollado en **React 18**, **TypeScript**, **Tailwind CSS** y empaquetado con **Vite** servido a través de **Nginx**.
