@@ -1,4 +1,7 @@
-# JokerArena · Cliente Web SSR 🃏✨
+> [!WARNING]
+> **Repositorio archivado (Prototipo 1).** Este cliente web (React + Vite) corresponde únicamente al Prototipo 1 y se conserva como referencia histórica (etiqueta `p1-final`). A partir del Prototipo 2 y en el Prototipo 3, el cliente web (`clients/web-ssr`, Next.js SSR) reside en el repositorio unificado: [AngelDavidRuizB/joker-arena-backend](https://github.com/AngelDavidRuizB/joker-arena-backend).
+
+# Joker Arena - Frontend Web Client 🃏✨
 
 Cliente web de **JokerArena: Multiverse Poker Engine** con **Server-Side Rendering**: **Next.js 14 (App Router)**, **React 18**, **TypeScript** y **Tailwind CSS**, compilado con la salida `standalone` de Next y desplegable en Docker.
 
