@@ -47,7 +47,6 @@ export default async function LeaderboardPage() {
           </p>
         </div>
       )}
-      <Link href="/lobby" className="text-sm text-neon-cyan underline underline-offset-4">Volver al lobby</Link>
     </div>
   );
 }
