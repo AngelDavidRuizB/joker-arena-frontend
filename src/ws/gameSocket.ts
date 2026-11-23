@@ -1,7 +1,7 @@
 import type { ConnectionStatus, ServerMessage } from '../lib/types';
 
 /** Server error codes after which reconnecting is pointless. */
-export const FATAL_ERROR_CODES = new Set(['ROOM_NOT_FOUND', 'UNKNOWN_PLAYER', 'ROOM_FULL', 'NOT_JOINED']);
+export const FATAL_ERROR_CODES = new Set(['ROOM_NOT_FOUND', 'UNKNOWN_PLAYER', 'ROOM_FULL', 'NOT_JOINED', 'UNAUTHORIZED', 'MATCH_FINISHED']);
 
 export const MAX_RECONNECT_ATTEMPTS = 8;
 
@@ -10,14 +10,25 @@ export function backoffDelay(attempt: number): number {
   return Math.min(10_000, 500 * 2 ** Math.max(0, attempt));
 }
 
-export function buildWsUrl(roomCode: string, loc: Pick<Location, 'protocol' | 'host'> = window.location): string {
-  const scheme = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${loc.host}/ws/${encodeURIComponent(roomCode)}`;
+/**
+ * URL del WebSocket del juego. El navegador se conecta directo al gateway (Next no hace
+ * proxy de WebSockets): NEXT_PUBLIC_GATEWAY_WS_URL o, por defecto, el puerto 8080 del mismo
+ * host. El JWT viaja en ?token= porque los navegadores no permiten cabeceras en WebSocket.
+ */
+export function buildWsUrl(
+  roomCode: string,
+  token: string,
+  loc: Pick<Location, 'protocol' | 'hostname'> = window.location,
+  base: string | undefined = process.env.NEXT_PUBLIC_GATEWAY_WS_URL,
+): string {
+  const origin = base && base.length > 0 ? base.replace(/\/$/, '') : `${loc.protocol === 'https:' ? 'wss:' : 'ws:'}//${loc.hostname}:8080`;
+  return `${origin}/ws/${encodeURIComponent(roomCode)}?token=${encodeURIComponent(token)}`;
 }
 
 export interface GameSocketOptions {
   roomCode: string;
   playerId: string;
+  token: string;
   onMessage: (msg: ServerMessage) => void;
   onStatus: (status: ConnectionStatus) => void;
   /** Injectable for tests. */
@@ -51,7 +62,7 @@ export class GameSocket {
 
   private open(status: ConnectionStatus): void {
     this.opts.onStatus(status);
-    const url = this.opts.url ?? buildWsUrl(this.opts.roomCode);
+    const url = this.opts.url ?? buildWsUrl(this.opts.roomCode, this.opts.token);
     const ws = (this.opts.createSocket ?? ((u: string) => new WebSocket(u)))(url);
     this.ws = ws;
 

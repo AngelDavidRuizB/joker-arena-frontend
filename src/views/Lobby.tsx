@@ -1,9 +1,11 @@
+'use client';
+
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Bot, Copy, DoorOpen, Swords, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ApiError, createRoom, getRoom } from '../api/client';
+import { ApiError, createRoom, getRoom, type Difficulty } from '../api/client';
 import { NeonButton } from '../components/NeonButton';
 import { DEFAULT_TARGET_SCORE, TARGET_OPTIONS } from '../lib/constants';
 import { normalizeRoomCode, validateRoomCode } from '../lib/validation';
@@ -12,8 +14,10 @@ import { useSession } from '../store/session';
 
 /** F2: creación de salas (con o sin Bot) y unión por código. */
 export function Lobby() {
-  const navigate = useNavigate();
-  const player = useSession((s) => s.player)!;
+  const router = useRouter();
+  const navigate = (to: string) => router.push(to);
+  const player = useSession((s) => s.player);
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
 
   const [withBot, setWithBot] = useState(true);
   const [target, setTarget] = useState<number>(DEFAULT_TARGET_SCORE);
@@ -29,10 +33,11 @@ export function Lobby() {
     setCreating(true);
     setCreateError(null);
     try {
-      const room = await createRoom(player.id, withBot, target);
+      if (!player) return;
+      const room = await createRoom(player.token, withBot, target, difficulty);
       setCreatedCode(room.room_code);
       toast.success(`Sala ${room.room_code} creada`, {
-        description: withBot ? 'Jugarás contra el Bot.' : 'Modo solitario.',
+        description: withBot ? `Jugarás contra el Bot (${difficulty}).` : 'Modo solitario.',
       });
       navigate(`/room/${room.room_code}`);
     } catch (err) {
@@ -53,8 +58,9 @@ export function Lobby() {
     }
     setJoining(true);
     try {
-      const room = await getRoom(normalized);
-      if (room.status === 'FINISHED') {
+      if (!player) return;
+      const room = await getRoom(player.token, normalized);
+      if (room.status === 'closed') {
         setJoinError('Esa partida ya terminó. Crea una sala nueva.');
         return;
       }
@@ -82,7 +88,7 @@ export function Lobby() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <p className="label-caps">Lobby</p>
         <h1 className="mt-1 font-display text-3xl font-black tracking-wider text-white">
-          Listo, <span className="text-neon-cyan text-glow-cyan">{player.alias}</span>
+          Listo, <span className="text-neon-cyan text-glow-cyan">{player?.alias ?? '...'}</span>
         </h1>
         <p className="mt-1 text-slate-400">Crea una sala nueva o únete con el código de otra.</p>
       </motion.div>
@@ -156,6 +162,25 @@ export function Lobby() {
               />
             </button>
           </div>
+
+          {withBot && (
+            <fieldset>
+              <legend className="label-caps mb-3">Dificultad del Bot</legend>
+              <div className="grid grid-cols-3 gap-3">
+                {(['easy', 'normal', 'hard'] as const).map((d) => (
+                  <label
+                    key={d}
+                    className={`cursor-pointer rounded-xl border p-2 text-center font-display text-xs uppercase tracking-widest transition ${
+                      difficulty === d ? 'border-neon-cyan bg-neon-cyan/15 shadow-neon-cyan' : 'border-white/10 bg-ink-950/50 hover:border-white/30'
+                    }`}
+                  >
+                    <input type="radio" name="difficulty" value={d} checked={difficulty === d} onChange={() => setDifficulty(d)} className="sr-only" />
+                    {d === 'easy' ? 'Fácil' : d === 'normal' ? 'Normal' : 'Difícil'}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           {createError && (
             <p role="alert" className="rounded-lg border border-neon-red/40 bg-neon-red/10 px-3 py-2 text-sm text-neon-red">

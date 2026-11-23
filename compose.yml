@@ -1,0 +1,30 @@
+# ==============================================================================
+# JokerArena · Frontend web con Server-Side Rendering (Next.js 14)
+# Vive en su propio repositorio. Se une a la red externa `jokerarena-net` que
+# crea el backend (docker-compose.p2.yml), así el servidor de Next resuelve
+# `http://jokerarena-gateway:8080` sin exponer los microservicios.
+#
+# Uso:
+#   docker network create jokerarena-net            # si el backend aún no está arriba
+#   docker compose up -d --build --wait
+# ==============================================================================
+services:
+  jokerarena-web-ssr:
+    build:
+      context: .
+      args:
+        # URL pública del WebSocket del juego (se incrusta en el bundle del navegador).
+        NEXT_PUBLIC_GATEWAY_WS_URL: ${PUBLIC_GATEWAY_WS_URL:-}
+    container_name: jokerarena-web-ssr
+    restart: unless-stopped
+    environment:
+      GATEWAY_INTERNAL_URL: ${GATEWAY_INTERNAL_URL:-http://jokerarena-gateway:8080}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    networks: [jokerarena-net]
+
+networks:
+  jokerarena-net:
+    name: jokerarena-net
+    external: true
+

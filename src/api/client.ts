@@ -1,56 +1,77 @@
 import { DEFAULT_TARGET_SCORE } from '../lib/constants';
-import type { CreateRoomResponse, PlayerDto, RoomDetails } from '../lib/types';
+import type { AuthResponse, LobbyRoom } from '../lib/types';
 
-/** Error raised by the REST client. status 0 means the server could not be reached. */
+/** Error del cliente REST. status 0 = no se pudo contactar el gateway. */
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly code: string;
+  constructor(status: number, message: string, code = '') {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Todas las rutas pasan por el gateway (/api/... reescrito por Next al gateway). */
+export async function request<T>(path: string, init?: RequestInit & { token?: string }): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.token ? { Authorization: `Bearer ${init.token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
     });
   } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor de juego. ¿Está encendido?');
+    throw new ApiError(0, 'No se pudo conectar con el servidor. ¿Está encendido?');
   }
-
   let body: unknown = null;
   try {
     body = await res.json();
   } catch {
-    // Non-JSON body (e.g. a proxy error page)
+    // cuerpo no JSON
   }
-
   if (!res.ok) {
-    const serverMsg =
-      body && typeof body === 'object' && 'error' in body ? String((body as { error: unknown }).error) : '';
+    const b = (body ?? {}) as { error?: string; message?: string };
     const message =
       res.status === 503
-        ? 'La base de datos no está disponible. Inténtalo de nuevo en unos segundos.'
-        : serverMsg || `Error inesperado del servidor (${res.status}).`;
-    throw new ApiError(res.status, message);
+        ? 'Un servicio no está disponible. Inténtalo de nuevo en unos segundos.'
+        : b.message || `Error inesperado del servidor (${res.status}).`;
+    throw new ApiError(res.status, message, b.error ?? '');
   }
   return body as T;
 }
 
-/** F1: register (or retrieve) a player by alias. */
-export const registerPlayer = (alias: string) =>
-  request<PlayerDto>('/api/players', { method: 'POST', body: JSON.stringify({ alias }) });
+/** Credenciales de la cuenta: usuario y contraseña. */
+export interface Credentials {
+  user: string;
+  password: string;
+}
 
-/** F2: create a room (and its persisted match). */
-export const createRoom = (playerId: string, withBot: boolean, targetScore = DEFAULT_TARGET_SCORE) =>
-  request<CreateRoomResponse>('/api/rooms', {
+/** F1: crea la cuenta con usuario y contraseña (el servidor verifica la repetición). */
+export const register = (c: Credentials & { repeatPassword: string }) =>
+  request<AuthResponse>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ player_id: playerId, target_score: targetScore, with_bot: withBot }),
+    body: JSON.stringify({ user: c.user, password: c.password, repeat_password: c.repeatPassword }),
   });
 
-/** Look up a room to validate a code before joining it. */
-export const getRoom = (code: string) => request<RoomDetails>(`/api/rooms/${encodeURIComponent(code)}`);
+/** F1: inicia sesión con usuario y contraseña. */
+export const login = (c: Credentials) =>
+  request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(c) });
+
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+/** F2: crea una sala en rooms-lobby-ms. */
+export const createRoom = (token: string, withBot: boolean, targetScore = DEFAULT_TARGET_SCORE, difficulty: Difficulty = 'normal') =>
+  request<LobbyRoom>('/api/rooms', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ mode: withBot ? 'bot' : 'pvp', target_score: targetScore, difficulty }),
+  });
+
+/** Consulta una sala para validar el código antes de entrar. */
+export const getRoom = (token: string, code: string) =>
+  request<LobbyRoom>(`/api/rooms/${encodeURIComponent(code)}`, { token });

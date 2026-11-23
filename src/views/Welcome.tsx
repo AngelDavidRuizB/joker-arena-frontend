@@ -1,12 +1,14 @@
+'use client';
+
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { registerPlayer, ApiError } from '../api/client';
+import { ApiError, login, register } from '../api/client';
 import { Logo } from '../components/Logo';
 import { NeonButton } from '../components/NeonButton';
 import { JOKERS } from '../lib/cards';
-import { ALIAS_MAX, validateAlias } from '../lib/validation';
+import { ALIAS_MAX, PASSWORD_MIN, validatePassword, validatePasswordRepeat, validateUser } from '../lib/validation';
 import { useSession } from '../store/session';
 
 const JOKER_ACCENT = {
@@ -15,34 +17,75 @@ const JOKER_ACCENT = {
   violet: 'border-neon-violet/40 text-neon-violet',
 } as const;
 
-/** F1: registro de jugador por alias (identificación liviana, sin contraseña). */
+type AuthMode = 'login' | 'register';
+
+const MODE_COPY: Record<AuthMode, { title: string; subtitle: string; action: string }> = {
+  login: { title: 'Entra a la arena', subtitle: 'Usa tu usuario y contraseña.', action: 'Entrar y jugar' },
+  register: {
+    title: 'Crea tu cuenta',
+    subtitle: `Elige un usuario y una contraseña (mínimo ${PASSWORD_MIN} caracteres).`,
+    action: 'Crear cuenta y jugar',
+  },
+};
+
+/** F1: inicio de sesión y registro con usuario + contraseña (+ repetición al registrarse). */
 export function Welcome() {
-  const navigate = useNavigate();
+  const router = useRouter();
+  const navigate = (to: string) => router.push(to);
   const player = useSession((s) => s.player);
   const setPlayer = useSession((s) => s.setPlayer);
   const clear = useSession((s) => s.clear);
 
-  const [alias, setAlias] = useState('');
-  const [touched, setTouched] = useState(false);
+  const [mode, setMode] = useState<AuthMode>('login');
+  const [user, setUser] = useState('');
+  const [password, setPassword] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [touched, setTouched] = useState<{ user?: boolean; password?: boolean; repeat?: boolean }>({});
+  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const clientError = validateAlias(alias);
-  const shownError = serverError ?? (touched ? clientError : null);
+  const copy = MODE_COPY[mode];
+  const userError = validateUser(user);
+  const passwordError = validatePassword(password);
+  const repeatError = mode === 'register' ? validatePasswordRepeat(password, repeat) : null;
+  const firstError = userError ?? passwordError ?? repeatError;
+  const show = (field: 'user' | 'password' | 'repeat', error: string | null) =>
+    submitted || touched[field] ? error : null;
+  const shownUserError = show('user', userError);
+  const shownPasswordError = show('password', passwordError);
+  const shownRepeatError = show('repeat', repeatError);
+  const isAdminUser = user.trim().toLowerCase() === 'admin';
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setRepeat('');
+    setSubmitted(false);
+    setTouched({});
+    setServerError(null);
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setTouched(true);
+    setSubmitted(true);
     setServerError(null);
-    if (clientError) return;
+    if (firstError) return;
     setLoading(true);
     try {
-      const created = await registerPlayer(alias.trim());
-      setPlayer({ id: created.id, alias: created.alias });
-      toast.success(`¡Bienvenido, ${created.alias}!`, { description: `Identificador de jugador #${created.id}` });
-      navigate('/lobby');
+      const account = user.trim();
+      const res =
+        mode === 'register'
+          ? await register({ user: account, password, repeatPassword: repeat })
+          : await login({ user: account, password });
+      setPlayer({ id: res.player.player_id, alias: res.player.alias, role: res.player.role, token: res.token });
+      toast.success(
+        mode === 'register' ? `¡Cuenta creada, ${res.player.alias}!` : `¡Bienvenido de nuevo, ${res.player.alias}!`,
+        { description: 'Sesión iniciada con token JWT.' },
+      );
+      navigate(res.player.role === 'admin' ? '/admin' : '/lobby');
+      router.refresh();
     } catch (err) {
-      setServerError(err instanceof ApiError ? err.message : 'No se pudo registrar el alias.');
+      setServerError(err instanceof ApiError ? err.message : 'No se pudo completar el acceso.');
     } finally {
       setLoading(false);
     }
@@ -87,52 +130,150 @@ export function Welcome() {
               onClick={clear}
               className="text-sm text-slate-400 underline decoration-dotted underline-offset-4 hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan"
             >
-              Usar otro alias
+              Usar otra cuenta
             </button>
           </div>
         ) : (
           <form onSubmit={onSubmit} noValidate className="space-y-5">
-            <div>
-              <h1 id="welcome-title" className="font-display text-xl font-bold tracking-wider text-white">
-                Entra a la arena
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">Elige un alias. No necesitas contraseña.</p>
+            <div
+              role="tablist"
+              aria-label="Acceso"
+              className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-ink-900/60 p-1"
+            >
+              {(['login', 'register'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === m}
+                  onClick={() => switchMode(m)}
+                  className={`rounded-lg px-3 py-2 font-display text-[0.65rem] uppercase tracking-widest transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan ${
+                    mode === m ? 'bg-neon-cyan/15 text-neon-cyan' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {m === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+                </button>
+              ))}
             </div>
 
             <div>
-              <label htmlFor="alias" className="label-caps mb-2 block">
-                Alias del jugador
+              <h1 id="welcome-title" className="font-display text-xl font-bold tracking-wider text-white">
+                {copy.title}
+              </h1>
+              <p className="mt-1 text-sm text-slate-400">{copy.subtitle}</p>
+            </div>
+
+            <div>
+              <label htmlFor="user" className="label-caps mb-2 block">
+                Usuario
               </label>
               <input
-                id="alias"
-                name="alias"
+                id="user"
+                name="user"
                 type="text"
-                autoComplete="off"
+                autoComplete="username"
                 autoFocus
+                autoCapitalize="none"
+                spellCheck={false}
                 maxLength={ALIAS_MAX + 10}
-                value={alias}
+                value={user}
                 placeholder="JokerPro99"
                 onChange={(e) => {
-                  setAlias(e.target.value);
+                  setUser(e.target.value);
                   setServerError(null);
                 }}
-                onBlur={() => setTouched(true)}
-                aria-invalid={shownError ? true : undefined}
-                aria-describedby="alias-feedback"
+                onBlur={() => setTouched((t) => ({ ...t, user: true }))}
+                aria-invalid={shownUserError ? true : undefined}
+                aria-describedby="user-feedback"
                 className="field"
               />
               <p
-                id="alias-feedback"
-                role={shownError ? 'alert' : undefined}
-                className={`mt-2 min-h-[1.25rem] text-sm ${shownError ? 'text-neon-red' : 'text-slate-500'}`}
+                id="user-feedback"
+                role={shownUserError ? 'alert' : undefined}
+                className={`mt-2 min-h-[1.25rem] text-sm ${shownUserError ? 'text-neon-red' : 'text-slate-500'}`}
               >
-                {shownError ?? `${alias.trim().length}/${ALIAS_MAX} · letras, números, - y _`}
+                {shownUserError ?? `${user.trim().length}/${ALIAS_MAX} · letras, números, - y _`}
               </p>
             </div>
 
+            <div>
+              <label htmlFor="password" className="label-caps mb-2 block">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setServerError(null);
+                }}
+                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+                aria-invalid={shownPasswordError ? true : undefined}
+                aria-describedby="password-feedback"
+                className="field"
+              />
+              <p
+                id="password-feedback"
+                role={shownPasswordError ? 'alert' : undefined}
+                className={`mt-2 min-h-[1.25rem] text-sm ${shownPasswordError ? 'text-neon-red' : 'text-slate-500'}`}
+              >
+                {shownPasswordError ??
+                  (isAdminUser
+                    ? 'El usuario admin usa la contraseña de administración (ADMIN_PASSWORD).'
+                    : `Mínimo ${PASSWORD_MIN} caracteres.`)}
+              </p>
+            </div>
+
+            {mode === 'register' && (
+              <div>
+                <label htmlFor="repeat" className="label-caps mb-2 block">
+                  Repetir contraseña
+                </label>
+                <input
+                  id="repeat"
+                  name="repeat"
+                  type="password"
+                  autoComplete="new-password"
+                  value={repeat}
+                  onChange={(e) => {
+                    setRepeat(e.target.value);
+                    setServerError(null);
+                  }}
+                  onBlur={() => setTouched((t) => ({ ...t, repeat: true }))}
+                  aria-invalid={shownRepeatError ? true : undefined}
+                  aria-describedby="repeat-feedback"
+                  className="field"
+                />
+                <p
+                  id="repeat-feedback"
+                  role={shownRepeatError ? 'alert' : undefined}
+                  className={`mt-2 min-h-[1.25rem] text-sm ${shownRepeatError ? 'text-neon-red' : 'text-slate-500'}`}
+                >
+                  {shownRepeatError ?? 'Debe coincidir con la contraseña.'}
+                </p>
+              </div>
+            )}
+
+            {serverError && (
+              <p role="alert" className="rounded-lg border border-neon-red/40 bg-neon-red/10 px-3 py-2 text-sm text-neon-red">
+                {serverError}
+              </p>
+            )}
+
             <NeonButton type="submit" block loading={loading} variant="cyan">
-              Registrarme y jugar
+              {copy.action}
             </NeonButton>
+
+            <button
+              type="button"
+              onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+              className="w-full text-sm text-slate-400 underline decoration-dotted underline-offset-4 hover:text-neon-cyan focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan"
+            >
+              {mode === 'login' ? '¿No tienes cuenta? Crear una' : '¿Ya tienes cuenta? Iniciar sesión'}
+            </button>
           </form>
         )}
       </motion.section>
