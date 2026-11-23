@@ -6,11 +6,10 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY . .
 # La URL pública del WebSocket se incrusta en el bundle del navegador al compilar.
-# Next calcula los rewrites (/api -> gateway) al compilar: la URL interna va como argumento.
-ARG GATEWAY_INTERNAL_URL=http://jokerarena-gateway:8080
-ENV GATEWAY_INTERNAL_URL=$GATEWAY_INTERNAL_URL
+# GATEWAY_INTERNAL_URL, en cambio, se lee en TIEMPO DE EJECUCIÓN (src/lib/server/proxy.ts),
+# así que se puede cambiar con `docker run -e` / `environment:` sin recompilar.
+COPY . .
 ARG NEXT_PUBLIC_GATEWAY_WS_URL=""
 ENV NEXT_PUBLIC_GATEWAY_WS_URL=$NEXT_PUBLIC_GATEWAY_WS_URL
 RUN npm run build

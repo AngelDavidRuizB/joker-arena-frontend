@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRoomCode, validateAlias, validateRoomCode } from '../lib/validation';
+import {
+  normalizeRoomCode,
+  validateAlias,
+  validatePassword,
+  validatePasswordRepeat,
+  validateRoomCode,
+  validateUser,
+} from '../lib/validation';
 
 describe('validateAlias', () => {
   it('accepts valid aliases', () => {
@@ -21,6 +28,36 @@ describe('validateAlias', () => {
   it('reserves the bot alias', () => {
     expect(validateAlias('Bot-JokerBot')).toMatch(/reservado/);
     expect(validateAlias('bot-jokerbot')).toMatch(/reservado/);
+  });
+});
+
+describe('cuenta: usuario, contraseña y repetición', () => {
+  it('valida el usuario con las reglas del servicio de identidad', () => {
+    for (const u of ['JokerPro99', 'ab', 'a_b-c', '  padded  ']) {
+      expect(validateUser(u), u).toBeNull();
+    }
+    expect(validateUser('')).toMatch(/usuario/i);
+    expect(validateUser('a')).toMatch(/al menos 2/);
+    expect(validateUser('x'.repeat(31))).toMatch(/máximo 30/);
+    for (const u of ['con espacio', '<script>', 'a@b']) {
+      expect(validateUser(u), u).not.toBeNull();
+    }
+    expect(validateUser('Bot-JokerBot')).toMatch(/reservado/);
+  });
+
+  it('exige una contraseña de 8 a 72 caracteres', () => {
+    expect(validatePassword('secreta123')).toBeNull();
+    expect(validatePassword('')).toMatch(/escribe una contraseña/i);
+    expect(validatePassword('      ')).toMatch(/espacios/i);
+    expect(validatePassword('corta12')).toMatch(/al menos 8/);
+    expect(validatePassword('x'.repeat(72))).toBeNull();
+    expect(validatePassword('x'.repeat(73))).toMatch(/máximo 72/);
+  });
+
+  it('comprueba que la contraseña repetida coincide', () => {
+    expect(validatePasswordRepeat('secreta123', 'secreta123')).toBeNull();
+    expect(validatePasswordRepeat('secreta123', '')).toMatch(/repite/i);
+    expect(validatePasswordRepeat('secreta123', 'secreta124')).toMatch(/no coinciden/i);
   });
 });
 

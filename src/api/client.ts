@@ -45,18 +45,22 @@ export async function request<T>(path: string, init?: RequestInit & { token?: st
   return body as T;
 }
 
-/** F1: entra con un alias. Si el alias ya existe, inicia sesión con él. */
-export async function enter(alias: string, password?: string): Promise<AuthResponse> {
-  const body = JSON.stringify(password ? { alias, password } : { alias });
-  try {
-    return await request<AuthResponse>('/api/auth/register', { method: 'POST', body });
-  } catch (err) {
-    if (err instanceof ApiError && err.code === 'alias_taken') {
-      return request<AuthResponse>('/api/auth/login', { method: 'POST', body });
-    }
-    throw err;
-  }
+/** Credenciales de la cuenta: usuario y contraseña. */
+export interface Credentials {
+  user: string;
+  password: string;
 }
+
+/** F1: crea la cuenta con usuario y contraseña (el servidor verifica la repetición). */
+export const register = (c: Credentials & { repeatPassword: string }) =>
+  request<AuthResponse>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ user: c.user, password: c.password, repeat_password: c.repeatPassword }),
+  });
+
+/** F1: inicia sesión con usuario y contraseña. */
+export const login = (c: Credentials) =>
+  request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(c) });
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 

@@ -130,6 +130,8 @@ export interface AuthResponse {
   player: {
     player_id: string;
     alias: string;
+    /** Nombre de usuario: mismo valor que `alias` (campo nuevo del contrato de auth). */
+    user?: string;
     role: 'player' | 'admin';
   };
 }

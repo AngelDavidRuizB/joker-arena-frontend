@@ -10,7 +10,7 @@ Este repositorio es la **casa oficial del frontend**. El backend (`joker-arena-b
 
 | Página | Renderizado | Datos | Fuente |
 |---|---|---|---|
-| `/` | cliente | entrada por alias + contraseña de admin (`/api/auth/*`) | auth-identity-ms |
+| `/` | cliente | registro (**usuario**, contraseña, repetir contraseña) e inicio de sesión (usuario + contraseña) — `/api/auth/register` · `/api/auth/login` | auth-identity-ms |
 | `/lobby` | **servidor** (lista de salas) + formulario interactivo | `/api/rooms?status=...` | rooms-lobby-ms |
 | `/room/{code}` | cliente (WebSocket) | `/ws/{code}?token=` | game-engine-ms |
 | `/leaderboard` | **servidor** | `/api/leaderboard/top` | leaderboard-stats-ms |
@@ -28,7 +28,7 @@ navegador ──(WebSocket directo, ?token=JWT)───────────
 ```
 
 - Las páginas SSR llaman al gateway por la **red interna** con `GATEWAY_INTERNAL_URL` (por defecto `http://localhost:8080`) y el JWT de la cookie `ja_token` (`src/lib/server/gateway.ts`).
-- El navegador pide `/api/*` al **mismo origen** y Next lo reenvía al gateway (`next.config.mjs`), así no hay CORS ni acceso directo a los microservicios.
+- El navegador pide `/api/*` (y `/gw-admin/*`) al **mismo origen** y el servidor de Next lo reenvía al gateway en **tiempo de ejecución** (`src/lib/server/proxy.ts`): no hay CORS, no se expone ningún microservicio y la URL del gateway se puede cambiar con una variable de entorno sin recompilar.
 - El WebSocket del juego va directo al gateway: `NEXT_PUBLIC_GATEWAY_WS_URL` o, por defecto, `ws://<host>:8080`.
 
 ---
@@ -154,6 +154,7 @@ Si el backend no está levantado, la red externa debe existir primero: `docker n
 | `Ports are not available ... bind: address already in use` (3000) | Otro `npm run dev` o contenedor en el puerto | `docker ps`, cierra el otro proceso, o cambia `WEB_PORT=3001` |
 | `Conflict. The container name "/jokerarena-web-ssr" is already in use` | Ya hay un contenedor con ese nombre | `docker rm -f jokerarena-web-ssr` |
 | Las páginas SSR dicen «No se pudo contactar el API Gateway» | `GATEWAY_INTERNAL_URL` incorrecto o backend caído | Docker Desktop: `http://host.docker.internal:8080`; en la red del backend: `http://jokerarena-gateway:8080` |
+| `/api/*` responde `500` o `503 {"error":"service_unavailable"}` | El servidor de Next no alcanza el gateway (`GATEWAY_INTERNAL_URL`) | Revisa la variable del contenedor (`docker exec jokerarena-web-ssr printenv GATEWAY_INTERNAL_URL`) y que el gateway esté arriba |
 | `next start` avisa «does not work with "output: standalone"» | Aviso esperado con salida standalone | Usa Docker, o `node .next/standalone/server.js` (el aviso no impide servir la app) |
 | `npm : no se puede cargar el archivo ... la ejecución de scripts está deshabilitada` (PowerShell) | Política de ejecución | `Set-ExecutionPolicy -Scope Process Bypass` |
 
@@ -171,7 +172,7 @@ src/
 │  └─ admin/            # cliente: consola de administración
 ├─ components/          # UI de la mesa, HUD, cascada, paneles
 ├─ lib/                 # cartas, cascada de puntuación, tipos, validación
-│  └─ server/gateway.ts # cliente HTTP solo-servidor (JWT de la cookie)
+│  └─ server/           # solo-servidor: gateway.ts (SSR con JWT) y proxy.ts (/api → gateway)
 ├─ store/               # Zustand: sesión (cookie + localStorage) y partida
 ├─ ws/gameSocket.ts     # cliente WebSocket con reconexión y backoff
 └─ test/                # Vitest + Testing Library
