@@ -1,38 +1,28 @@
 # ==============================================================================
-# Stage 1: Build React + Vite SPA
+# web-ssr (Next.js 14, Server-Side Rendering) - multi-etapa, salida standalone, no-root
 # ==============================================================================
-FROM node:20-alpine AS builder
-
+FROM node:22-alpine AS build
 WORKDIR /app
-
-# Copy package manifests
-COPY package.json package-lock.json* ./
-
-# Install dependencies (resilient to presence/absence of package-lock.json)
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-# Copy frontend source files, configuration, and assets
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY . .
-
-# Compile optimized static bundle into /app/dist
+# La URL pública del WebSocket se incrusta en el bundle del navegador al compilar.
+# Next calcula los rewrites (/api -> gateway) al compilar: la URL interna va como argumento.
+ARG GATEWAY_INTERNAL_URL=http://jokerarena-gateway:8080
+ENV GATEWAY_INTERNAL_URL=$GATEWAY_INTERNAL_URL
+ARG NEXT_PUBLIC_GATEWAY_WS_URL=""
+ENV NEXT_PUBLIC_GATEWAY_WS_URL=$NEXT_PUBLIC_GATEWAY_WS_URL
 RUN npm run build
 
-# ==============================================================================
-# Stage 2: Production Nginx Web Server & Reverse Proxy
-# ==============================================================================
-FROM nginx:1.27-alpine
-
-# Remove default boilerplate configuration
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# Copy production static assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy custom Nginx configuration with reverse proxy and SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose internal HTTP port
-EXPOSE 80
-
-# Launch Nginx in foreground mode
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:22-alpine
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "server.js"]

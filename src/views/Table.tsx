@@ -1,7 +1,10 @@
+'use client';
+
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Bot, Copy, Play, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { AuditPanel } from '../components/AuditPanel';
 import { BotScoreboard } from '../components/BotScoreboard';
@@ -23,9 +26,10 @@ const ACTION_TIMEOUT_MS = 8000;
 
 /** F3–F5: the interactive table. All game rules run on the server; this view only renders state. */
 export function Table() {
-  const { code: rawCode } = useParams();
+  const { code: rawCode } = useParams<{ code: string }>();
   const code = normalizeRoomCode(rawCode ?? '');
-  const navigate = useNavigate();
+  const router = useRouter();
+  const navigate = (to: string) => router.push(to);
   const player = useSession((s) => s.player)!;
 
   const connection = useGame((s) => s.connection);
@@ -60,6 +64,7 @@ export function Table() {
     const sock = new GameSocket({
       roomCode: code,
       playerId: player.id,
+      token: player.token,
       onMessage: (msg) => {
         useGame.getState().applyMessage(msg);
         if (msg.type === 'ERROR' && FATAL_ERROR_CODES.has(msg.payload.code)) setFatal(msg.payload.message);
@@ -73,7 +78,7 @@ export function Table() {
       socketRef.current = null;
       useGame.getState().reset();
     };
-  }, [code, player.id, codeError]);
+  }, [code, player.id, player.token, codeError]);
 
   // Surface non-fatal server errors as toasts.
   useEffect(() => {
@@ -344,6 +349,16 @@ export function Table() {
       <AnimatePresence>
         {finished && !cascade && showResult && (
           <ResultOverlay result={finished} onLobby={() => navigate('/lobby')} onReview={() => setShowResult(false)} />
+        )}
+        {finished && room?.match_id && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Link
+              href={`/matches/${room.match_id}`}
+              className="rounded-xl border border-neon-violet/60 bg-ink-900/90 px-4 py-2 font-display text-xs uppercase tracking-widest text-neon-violet shadow-neon-violet hover:bg-neon-violet/20"
+            >
+              Ver auditoría de la partida
+            </Link>
+          </div>
         )}
       </AnimatePresence>
 

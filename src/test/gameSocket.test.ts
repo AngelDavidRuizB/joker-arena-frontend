@@ -40,6 +40,7 @@ function setup() {
   const socket = new GameSocket({
     roomCode: 'JKR-ABCD',
     playerId: '7',
+    token: 't0k',
     url: 'ws://test/ws/JKR-ABCD',
     createSocket: (u) => new FakeSocket(u) as unknown as WebSocket,
     onStatus: (s) => statuses.push(s),
@@ -56,8 +57,9 @@ describe('GameSocket', () => {
   afterEach(() => vi.useRealTimers());
 
   it('builds same-origin ws/wss URLs', () => {
-    expect(buildWsUrl('JKR-ABCD', { protocol: 'http:', host: 'localhost:3000' })).toBe('ws://localhost:3000/ws/JKR-ABCD');
-    expect(buildWsUrl('JKR-ABCD', { protocol: 'https:', host: 'game.example' })).toBe('wss://game.example/ws/JKR-ABCD');
+    expect(buildWsUrl('JKR-ABCD', 't0k', { protocol: 'http:', hostname: 'localhost' }, '')).toBe('ws://localhost:8080/ws/JKR-ABCD?token=t0k');
+    expect(buildWsUrl('JKR-ABCD', 't0k', { protocol: 'https:', hostname: 'game.example' }, '')).toBe('wss://game.example:8080/ws/JKR-ABCD?token=t0k');
+    expect(buildWsUrl('JKR-ABCD', 'a b', { protocol: 'http:', hostname: 'x' }, 'ws://gw:9000/')).toBe('ws://gw:9000/ws/JKR-ABCD?token=a%20b');
   });
 
   it('computes exponential backoff with a cap', () => {

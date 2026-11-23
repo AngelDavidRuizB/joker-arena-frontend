@@ -1,8 +1,10 @@
+'use client';
+
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { registerPlayer, ApiError } from '../api/client';
+import { enter, ApiError } from '../api/client';
 import { Logo } from '../components/Logo';
 import { NeonButton } from '../components/NeonButton';
 import { JOKERS } from '../lib/cards';
@@ -17,12 +19,15 @@ const JOKER_ACCENT = {
 
 /** F1: registro de jugador por alias (identificación liviana, sin contraseña). */
 export function Welcome() {
-  const navigate = useNavigate();
+  const router = useRouter();
+  const navigate = (to: string) => router.push(to);
   const player = useSession((s) => s.player);
   const setPlayer = useSession((s) => s.setPlayer);
   const clear = useSession((s) => s.clear);
 
   const [alias, setAlias] = useState('');
+  const [password, setPassword] = useState('');
+  const isAdmin = alias.trim().toLowerCase() === 'admin';
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -37,10 +42,11 @@ export function Welcome() {
     if (clientError) return;
     setLoading(true);
     try {
-      const created = await registerPlayer(alias.trim());
-      setPlayer({ id: created.id, alias: created.alias });
-      toast.success(`¡Bienvenido, ${created.alias}!`, { description: `Identificador de jugador #${created.id}` });
-      navigate('/lobby');
+      const res = await enter(alias.trim(), isAdmin ? password : undefined);
+      setPlayer({ id: res.player.player_id, alias: res.player.alias, role: res.player.role, token: res.token });
+      toast.success(`¡Bienvenido, ${res.player.alias}!`, { description: 'Sesión iniciada con token JWT.' });
+      navigate(res.player.role === 'admin' ? '/admin' : '/lobby');
+      router.refresh();
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'No se pudo registrar el alias.');
     } finally {
@@ -130,8 +136,17 @@ export function Welcome() {
               </p>
             </div>
 
+            {isAdmin && (
+              <div>
+                <label htmlFor="password" className="label-caps mb-2 block">
+                  Contraseña de administración
+                </label>
+                <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="field" />
+              </div>
+            )}
+
             <NeonButton type="submit" block loading={loading} variant="cyan">
-              Registrarme y jugar
+              Entrar y jugar
             </NeonButton>
           </form>
         )}

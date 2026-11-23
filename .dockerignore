@@ -1,5 +1,8 @@
 node_modules
-dist
+.next
+coverage
+src/test
 .git
 .env*
-npm-debug.log*
+README.md
+compose.yml

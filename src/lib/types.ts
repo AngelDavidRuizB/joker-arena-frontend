@@ -1,4 +1,6 @@
-// Types of the Game Engine contracts (C1 REST and C2 WebSocket).
+// Contratos del sistema consumidos por el cliente web (ver contracts/ del backend).
+// - C2 WebSocket del juego: game-engine-ms  -> protocolo de sala y puntuación.
+// - REST a través del API Gateway: auth-identity-ms, rooms-lobby-ms, leaderboard-stats-ms.
 
 export type Suit = 'SPADES' | 'HEARTS' | 'CLUBS' | 'DIAMONDS';
 export type RoomStatus = 'WAITING' | 'IN_PROGRESS' | 'FINISHED';
@@ -63,6 +65,8 @@ export interface JokerEffect {
   id: string;
   name: string;
   effect: string;
+  /** false: disabled by LiveOps, not a miss of the game state. */
+  enabled?: boolean;
   triggered: boolean;
   chips_added: number;
   mult_added: number;
@@ -116,27 +120,43 @@ export type ServerMessage =
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
-// REST payloads
-export interface PlayerDto {
-  id: string;
-  alias: string;
+/* ------------------------------------------------------------------ REST P2 */
+
+/** Respuesta de POST /api/auth/register y /api/auth/login (auth-identity-ms). */
+export interface AuthResponse {
+  token: string;
+  token_type: string;
+  expires_in: number;
+  player: {
+    player_id: string;
+    alias: string;
+    role: 'player' | 'admin';
+  };
+}
+
+export type LobbyMode = 'bot' | 'pvp';
+export type LobbyDifficulty = 'easy' | 'normal' | 'hard';
+export type LobbyStatus = 'open' | 'in_progress' | 'closed';
+
+/** Sala tal como la devuelve rooms-lobby-ms (GET/POST /api/rooms). */
+export interface LobbyRoom {
+  room_code: string;
+  mode: LobbyMode;
+  difficulty: LobbyDifficulty;
+  target_score: number;
+  status: LobbyStatus;
+  created_by: string;
   created_at: string;
+  players: { player_id: string; alias: string }[];
 }
 
-export interface CreateRoomResponse {
-  room_code: string;
-  match_id: string;
-  target_score: number;
-  status: RoomStatus;
-  with_bot: boolean;
-  players: string[];
-}
-
-export interface RoomDetails {
-  room_code: string;
-  match_id: string;
-  target_score: number;
-  status: RoomStatus;
-  with_bot: boolean;
-  player_count: number;
+/** Entrada del ranking global (leaderboard-stats-ms, GET /api/leaderboard/top). */
+export interface RankedPlayer {
+  rank: number;
+  player_id: string;
+  alias: string | null;
+  matches: number;
+  wins: number;
+  best_score: number;
+  total_score: number;
 }
