@@ -4,8 +4,9 @@ import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '../../store/session';
 
 /**
- * URL interna del API Gateway dentro de `jokerarena-net`. El navegador nunca usa esta
- * constante: las páginas se renderizan en el servidor de Next y es él quien llama al gateway.
+ * URL interna del API Gateway dentro de `edge-net` (la red del borde en el P3). El navegador
+ * nunca usa esta constante: las páginas se renderizan en el servidor de Next y es él quien
+ * llama al gateway.
  */
 const GATEWAY = process.env.GATEWAY_INTERNAL_URL ?? 'http://localhost:8080';
 

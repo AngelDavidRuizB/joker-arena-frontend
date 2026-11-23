@@ -30,7 +30,7 @@ navegador ──(mismo origen /api/*, rewrite de Next)──▶ servidor Next �
 navegador ──(WebSocket directo, ?token=JWT)──────────────────────────▶ API Gateway :8080
 ```
 
-- Las páginas SSR llaman al gateway por la **red interna** con `GATEWAY_INTERNAL_URL` (por defecto `http://localhost:8080`) y el JWT de la cookie `ja_token` (`src/lib/server/gateway.ts`).
+- Las páginas SSR llaman al gateway por la **red del borde** (`edge-net`) con `GATEWAY_INTERNAL_URL` (por defecto `http://localhost:8080` en local y `http://jokerarena-gateway:8080` en Docker) y el JWT de la cookie `ja_token` (`src/lib/server/gateway.ts`).
 - El navegador pide `/api/*` (y `/gw-admin/*`) al **mismo origen** y el servidor de Next lo reenvía al gateway en **tiempo de ejecución** (`src/lib/server/proxy.ts`): no hay CORS, no se expone ningún microservicio y la URL del gateway se puede cambiar con una variable de entorno sin recompilar.
 - El WebSocket del juego va directo al gateway: `NEXT_PUBLIC_GATEWAY_WS_URL` o, por defecto, `ws://<host>:8080`.
 
@@ -99,7 +99,7 @@ La imagen es multi-etapa (`node:22-alpine` → salida standalone, usuario `node`
 docker compose up -d --build --wait
 ```
 
-`compose.yml` construye la imagen, publica `${WEB_PORT:-3000}` y apunta `GATEWAY_INTERNAL_URL` a `http://jokerarena-gateway:8080` dentro de la red `jokerarena-net`.
+`compose.yml` construye la imagen, publica `${WEB_PORT:-3000}`, se une a la red externa **`edge-net`** (la DMZ del P3, junto al gateway y el reverse proxy) y apunta `GATEWAY_INTERNAL_URL` a `http://jokerarena-gateway:8080`. Nunca entra a las redes internas (`app-net`, `pg-net`, `redis-net`, …).
 
 **Alternativa manual — una sola línea (copia y pega en PowerShell/CMD/bash):**
 
@@ -131,20 +131,20 @@ docker run -d --name jokerarena-web-ssr -p 3000:3000 ^
 ```
 
 Notas:
-- `host.docker.internal` es el host visto desde el contenedor en **Docker Desktop** (Windows/macOS). En Linux usa `--network jokerarena-net -e GATEWAY_INTERNAL_URL=http://jokerarena-gateway:8080` o añade `--add-host=host.docker.internal:host-gateway`.
+- `host.docker.internal` es el host visto desde el contenedor en **Docker Desktop** (Windows/macOS). En Linux usa `--network edge-net -e GATEWAY_INTERNAL_URL=http://jokerarena-gateway:8080` o añade `--add-host=host.docker.internal:host-gateway`.
 - Comprobar que quedó arriba: `curl http://localhost:3000/api/health` (debe responder `{"status":"ok","service":"web-ssr",...}`).
 - Si el nombre ya existe: `docker rm -f jokerarena-web-ssr` y vuelve a lanzarlo.
 
-**Con el ecosistema completo (red del backend):**
+**Con el ecosistema completo (red del borde del backend):**
 
 ```bash
-# 1) backend arriba (crea la red jokerarena-net)
+# 1) backend arriba (crea la red edge-net)
 cd ../joker-arena-backend && docker compose -f docker-compose.p2.yml up -d --build --wait
 # 2) frontend unido a esa red
 cd ../joker-arena-frontend && docker compose up -d --build --wait
 ```
 
-Si el backend no está levantado, la red externa debe existir primero: `docker network create jokerarena-net` (en PowerShell es el mismo comando, sin `\`).
+Si el backend no está levantado, la red externa debe existir primero: `docker network create edge-net` (en PowerShell es el mismo comando, sin `\`).
 
 ---
 
@@ -153,7 +153,7 @@ Si el backend no está levantado, la red externa debe existir primero: `docker n
 | Síntoma | Causa | Solución |
 |---|---|---|
 | `docker: invalid reference format` y `-e : El término '-e' no se reconoce...` | Pegaste un comando multilínea de **bash** en **PowerShell**: `\` no continúa líneas ahí | Usa el comando en **una sola línea** o el backtick `` ` `` al final de cada línea |
-| `network jokerarena-net declared as external, but could not be found` | La red del backend aún no existe | `docker network create jokerarena-net` o levanta primero el backend |
+| `network edge-net declared as external, but could not be found` | La red del borde del backend aún no existe (el P3 segmentó la red: ya no hay `jokerarena-net`) | `docker network create edge-net` o levanta primero el backend (`docker-compose.p2.yml`) |
 | `Ports are not available ... bind: address already in use` (3000) | Otro `npm run dev` o contenedor en el puerto | `docker ps`, cierra el otro proceso, o cambia `WEB_PORT=3001` |
 | `Conflict. The container name "/jokerarena-web-ssr" is already in use` | Ya hay un contenedor con ese nombre | `docker rm -f jokerarena-web-ssr` |
 | Las páginas SSR dicen «No se pudo contactar el API Gateway» | `GATEWAY_INTERNAL_URL` incorrecto o backend caído | Docker Desktop: `http://host.docker.internal:8080`; en la red del backend: `http://jokerarena-gateway:8080` |

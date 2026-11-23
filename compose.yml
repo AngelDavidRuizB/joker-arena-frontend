@@ -1,11 +1,12 @@
 # ==============================================================================
 # JokerArena · Frontend web con Server-Side Rendering (Next.js 14)
-# Vive en su propio repositorio. Se une a la red externa `jokerarena-net` que
-# crea el backend (docker-compose.p2.yml), así el servidor de Next resuelve
-# `http://jokerarena-gateway:8080` sin exponer los microservicios.
+# Vive en su propio repositorio. Se une a la red externa `edge-net` (la DMZ del
+# Prototipo 3: reverse proxy, API Gateway y web SSR), así el servidor de Next
+# resuelve `http://jokerarena-gateway:8080` sin acceso a las redes internas
+# (app-net, pg-net, redis-net, …).
 #
 # Uso:
-#   docker network create jokerarena-net            # si el backend aún no está arriba
+#   docker network create edge-net                 # si el backend aún no está arriba
 #   docker compose up -d --build --wait
 # ==============================================================================
 services:
@@ -18,13 +19,14 @@ services:
     container_name: jokerarena-web-ssr
     restart: unless-stopped
     environment:
+      # El gateway está en edge-net (y en app-net hacia los microservicios).
       GATEWAY_INTERNAL_URL: ${GATEWAY_INTERNAL_URL:-http://jokerarena-gateway:8080}
     ports:
       - "${WEB_PORT:-3000}:3000"
-    networks: [jokerarena-net]
+    networks: [edge-net]
 
 networks:
-  jokerarena-net:
-    name: jokerarena-net
+  edge-net:
+    name: edge-net
     external: true
 
