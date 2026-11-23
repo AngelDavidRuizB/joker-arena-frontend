@@ -5,11 +5,14 @@ import type { AuthResponse, LobbyRoom } from '../lib/types';
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, message: string, code = '') {
+  /** Segundos indicados por el servidor en `Retry-After` (p. ej. bloqueo de cuenta). */
+  readonly retryAfter?: number;
+  constructor(status: number, message: string, code = '', retryAfter?: number) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -40,7 +43,8 @@ export async function request<T>(path: string, init?: RequestInit & { token?: st
       res.status === 503
         ? 'Un servicio no está disponible. Inténtalo de nuevo en unos segundos.'
         : b.message || `Error inesperado del servidor (${res.status}).`;
-    throw new ApiError(res.status, message, b.error ?? '');
+    const retryAfter = Number(res.headers.get('Retry-After')) || undefined;
+    throw new ApiError(res.status, message, b.error ?? '', retryAfter);
   }
   return body as T;
 }

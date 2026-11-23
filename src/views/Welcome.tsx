@@ -44,6 +44,7 @@ export function Welcome() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   const copy = MODE_COPY[mode];
   const userError = validateUser(user);
@@ -63,6 +64,7 @@ export function Welcome() {
     setSubmitted(false);
     setTouched({});
     setServerError(null);
+    setLocked(false);
   };
 
   const onSubmit = async (e: FormEvent) => {
@@ -86,6 +88,8 @@ export function Welcome() {
       router.refresh();
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'No se pudo completar el acceso.');
+      // 423 account_locked: la cuenta está bloqueada por intentos fallidos (login o registro).
+      setLocked(err instanceof ApiError && err.code === 'account_locked');
     } finally {
       setLoading(false);
     }
@@ -258,12 +262,20 @@ export function Welcome() {
             )}
 
             {serverError && (
-              <p role="alert" className="rounded-lg border border-neon-red/40 bg-neon-red/10 px-3 py-2 text-sm text-neon-red">
-                {serverError}
+              <p
+                role="alert"
+                aria-live="assertive"
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  locked
+                    ? 'border-neon-amber/60 bg-neon-amber/10 font-semibold text-neon-amber'
+                    : 'border-neon-red/40 bg-neon-red/10 text-neon-red'
+                }`}
+              >
+                {locked ? `🔒 ${serverError}` : serverError}
               </p>
             )}
 
-            <NeonButton type="submit" block loading={loading} variant="cyan">
+            <NeonButton type="submit" block loading={loading} variant="cyan" disabled={locked}>
               {copy.action}
             </NeonButton>
 

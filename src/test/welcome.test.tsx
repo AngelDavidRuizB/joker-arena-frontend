@@ -106,4 +106,25 @@ describe('Welcome · registro e inicio de sesión', () => {
     await user.click(screen.getByRole('button', { name: /entrar y jugar/i }));
     expect(router.push).toHaveBeenCalledWith('/admin');
   });
+
+  it('muestra el mensaje de bloqueo y desactiva el envío', async () => {
+    mockedLogin.mockRejectedValue(
+      new ApiError(
+        423,
+        'Cuenta bloqueada por demasiados intentos fallidos. Inténtalo de nuevo en 15 minutos.',
+        'account_locked',
+        900,
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Welcome />);
+    await user.type(userField(), 'JokerPro99');
+    await user.type(passwordField(), 'mala-clave');
+    await user.click(screen.getByRole('button', { name: /entrar y jugar/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/cuenta bloqueada/i);
+    expect(alert).toHaveTextContent(/15 minutos/i);
+    expect(screen.getByRole('button', { name: /entrar y jugar/i })).toBeDisabled();
+    expect(useSession.getState().player).toBeNull();
+  });
 });
