@@ -21,8 +21,7 @@ services:
     environment:
       # El gateway está en edge-net (y en app-net hacia los microservicios).
       GATEWAY_INTERNAL_URL: ${GATEWAY_INTERNAL_URL:-http://jokerarena-gateway:8080}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+    # Sin puertos en el host (escenario 2): se entra por el reverse proxy en https://localhost.
     networks: [edge-net]
 
 networks:

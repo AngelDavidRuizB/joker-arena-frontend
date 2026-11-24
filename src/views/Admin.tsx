@@ -48,9 +48,10 @@ export function toPutBody(expectedVersion: number, r: Pick<Ruleset, 'jokers' | '
   return { expected_version: expectedVersion, jokers: r.jokers, happy_hour: r.happy_hour };
 }
 
-export function wsAdminUrl(token: string, loc: Pick<Location, 'protocol' | 'hostname'> = window.location): string {
+/** Radar del clúster por el mismo origen (el reverse proxy enruta /admin/* al gateway). */
+export function wsAdminUrl(token: string, loc: Pick<Location, 'protocol' | 'host'> = window.location): string {
   const base = process.env.NEXT_PUBLIC_GATEWAY_WS_URL;
-  const origin = base ? base.replace(/\/$/, '') : `${loc.protocol === 'https:' ? 'wss:' : 'ws:'}//${loc.hostname}:8080`;
+  const origin = base ? base.replace(/\/$/, '') : `${loc.protocol === 'https:' ? 'wss:' : 'ws:'}//${loc.host}`;
   return `${origin}/admin/cluster/metrics?token=${encodeURIComponent(token)}`;
 }
 
